@@ -4,3 +4,7 @@
 *.un~
 common
 _CoqProject
+*.glob
+*.vo
+*.d
+*~
