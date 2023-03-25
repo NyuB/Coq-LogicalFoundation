@@ -289,7 +289,10 @@ Qed.
 Lemma eqb_stringP : forall x y : string,
   reflect (x = y) (eqb_string x y).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros x y. apply iff_reflect. split.
+  + intros H. apply eqb_string_true_iff in H. apply H.
+  + intros H. apply eqb_string_true_iff in H. apply H.
+Qed.
 (** [] *)
 
 (** Now, given [string]s [x1] and [x2], we can use the tactic
@@ -308,7 +311,11 @@ Proof.
 Theorem t_update_same : forall (A : Type) (m : total_map A) x,
   (x !-> m x ; m) = m.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros A m x. apply functional_extensionality.
+  intros x0. destruct (eqb_stringP x x0) as [Eq | Neq].
+  + rewrite Eq. unfold t_update. rewrite <- eqb_string_refl. reflexivity.
+  + unfold t_update. rewrite false_eqb_string. { reflexivity. } { apply Neq. }
+Qed.
 (** [] *)
 
 (** **** Exercise: 3 stars, standard, especially useful (t_update_permute)
@@ -324,7 +331,13 @@ Theorem t_update_permute : forall (A : Type) (m : total_map A)
   =
   (x2 !-> v2 ; x1 !-> v1 ; m).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros A m v1 v2 x1 x2. destruct (eqb_stringP x1 x2) as [Eq | Neq].
+  + intros H. rewrite Eq in H. destruct H. reflexivity.
+  + intros H. apply functional_extensionality. intros x. 
+    unfold t_update. destruct (eqb_stringP x1 x) as [Eq1 | Neq1].
+    - rewrite Eq1 in H. rewrite false_eqb_string. reflexivity. apply H.
+    - reflexivity. 
+Qed.
 (** [] *)
 
 (* ################################################################# *)
