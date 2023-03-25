@@ -1659,8 +1659,6 @@ Proof.
       * reflexivity.
 Qed.
 
-Search "orb_true_iff".
-
 Lemma re_not_empty_correct : forall T (re : reg_exp T),
   (exists s, s =~ re) <-> re_not_empty re = true.
 Proof.
@@ -1827,8 +1825,6 @@ Proof.
       * apply H1.
 Qed.
 
-Search "app".
-
 (** **** Exercise: 4 stars, standard, optional (exp_match_ex2) *)
 
 (** The [MStar''] lemma below (combined with its converse, the
@@ -1937,6 +1933,18 @@ Proof.
   - rewrite H in Hp1''. discriminate Hp1''.
 Qed.
 
+Lemma pumping_constant_le0_false :
+  forall T (re : reg_exp T),
+    pumping_constant re <= 0 -> False.
+Proof.
+  intros T re H.
+  assert (Hp1 : pumping_constant re >= 1).
+  { apply pumping_constant_ge_1. }
+  inversion Hp1 as [Hp1'| p Hp1' Hp1''].
+  - rewrite <- Hp1' in H. inversion H.
+  - rewrite <- Hp1'' in H. inversion H.
+Qed.
+
 (** Next, it is useful to define an auxiliary function that repeats a
     string (appends it to itself) some number of times. *)
 
@@ -1972,6 +1980,37 @@ Proof.
     + apply IHm.
 Qed.
 
+Lemma napp_star_nil:
+  forall T m (re : reg_exp T),
+  napp m [] =~ Star re.
+Proof.
+  intros T m re. induction m as [|m' Hm'].
+    - simpl. apply MStar0.
+    - simpl. apply Hm'.
+Qed.
+
+Lemma napp_star_r:
+  forall T m s (re : reg_exp T),
+    s =~ Star re -> napp m s =~ Star re.
+Proof.
+  Ltac ez H := discriminate H.
+  intros T m. induction m as [|m' Hm'].
+    - intros s re H. simpl. apply MStar0.
+    - intros s re HStar. simpl. remember (Star re) as Hsre. induction HStar.
+      + ez HeqHsre.
+      + ez HeqHsre.
+      + ez HeqHsre.
+      + ez HeqHsre.
+      + ez HeqHsre.
+      + simpl. apply napp_star_nil. 
+      + rewrite <- (app_assoc T s1 s2 (napp m' (s1++s2))).
+        apply MStarApp. apply HStar1.
+        apply star_app. apply HStar2. apply Hm'.
+        apply (MStarApp s1 s2 re0 HStar1 HStar2).
+Qed.
+
+
+
 (** The (weak) pumping lemma itself says that, if [s =~ re] and if the
     length of [s] is at least the pumping constant of [re], then [s]
     can be split into three substrings [s1 ++ s2 ++ s3] in such a way
@@ -1981,6 +2020,11 @@ Qed.
     a (constructive!) way to generate strings matching [re] that are
     as long as we like. *)
 
+Lemma app_quadra_assoc : forall T (a b c d : list T),
+  (a ++ b ++ c) ++ d = a ++ b ++ c ++ d.
+Proof.
+  intros T a b c d. rewrite <- app_assoc. rewrite <- app_assoc. reflexivity.
+Qed.
 Lemma weak_pumping : forall T (re : reg_exp T) s,
   s =~ re ->
   pumping_constant re <= length s ->
@@ -1994,13 +2038,82 @@ Lemma weak_pumping : forall T (re : reg_exp T) s,
     may be useful. *)
 Proof.
   intros T re s Hmatch.
-  induction Hmatch
-    as [ | x | s1 re1 s2 re2 Hmatch1 IH1 Hmatch2 IH2
-       | s1 re1 re2 Hmatch IH | re1 s2 re2 Hmatch IH
-       | re | s1 s2 re Hmatch1 IH1 Hmatch2 IH2 ].
+  induction Hmatch as 
+  [ 
+  | x
+  | s1 re1 s2 re2 Hmatch1 IH1 Hmatch2 IH2
+  | s1 re1 re2 Hmatch IH
+  | re1 s2 re2 Hmatch IH
+  | re
+  | s1 s2 re Hmatch1 IH1 Hmatch2 IH2 
+  ].
   - (* MEmpty *)
     simpl. intros contra. inversion contra.
-  (* FILL IN HERE *) Admitted.
+  - (* MChar *)
+    simpl. intros contra. inversion contra as [Abs | m Abs Zm]. inversion Abs.
+  -  (* MApp *)
+    simpl. intros Hpc. rewrite app_length in Hpc. apply add_le_cases in Hpc.
+    destruct Hpc as [Hpc1 | Hpc2].
+    + apply IH1 in Hpc1. destruct Hpc1 as [hs1 [hs2 [hs3 [Eqhs Hhs]]]].
+      exists hs1. exists hs2. exists (hs3 ++ s2). destruct Hhs as [Hs2NZ Hhs]. split.
+      { rewrite Eqhs. apply app_quadra_assoc. }
+      {  split. { apply Hs2NZ. } 
+        { intros m. rewrite <- app_quadra_assoc. apply MApp.
+          { apply (Hhs m). }
+          { apply Hmatch2. }
+        }
+      }
+    + apply IH2 in Hpc2. destruct Hpc2 as [hs1 [hs2 [hs3 [Eqhs Hhs]]]].
+      exists (s1 ++ hs1). exists hs2. exists hs3. destruct Hhs as [Hs2NZ Hhs]. split.
+      { rewrite Eqhs. rewrite app_assoc. reflexivity. }
+      { split. apply Hs2NZ. 
+        { intros m. rewrite <- app_assoc. apply MApp.
+          { apply Hmatch1. }
+          { apply Hhs. }
+        }
+      }
+  - (* MUnionL *)
+    simpl. intros Hpc. apply plus_le in Hpc. destruct Hpc as [Hpc1 _].
+    apply IH in Hpc1. destruct Hpc1 as [hs1 [hs2 [hs3 [Eqhs [NZ Hhs]]]]].
+    exists hs1. exists hs2. exists hs3. split. apply Eqhs. split. apply NZ.
+    intros m. apply MUnionL. apply (Hhs m).
+  - (* MUnionR *)
+    simpl. intros Hpc. apply plus_le in Hpc. destruct Hpc as [_ Hpc2].
+    apply IH in Hpc2. destruct Hpc2 as [hs1 [hs2 [hs3 [Eqhs [NZ Hhs]]]]].
+    exists hs1. exists hs2. exists hs3. split. apply Eqhs. split. apply NZ.
+    intros m. apply MUnionR. apply (Hhs m).
+  - (* MStar0 *)
+    intros Hpc. simpl in Hpc. 
+    assert (pumping_constant re >= 1) as Hp1. apply pumping_constant_le0_false in Hpc. inversion Hpc.
+    apply pumping_constant_le0_false in Hpc. inversion Hpc.
+  - (* MStarApp *)
+    simpl. intros Hpc. assert (1 <= length (s1 ++ s2)) as Hl1.
+    { apply (le_trans 1 (pumping_constant re) (length (s1 ++ s2))). 
+      { assert (pumping_constant re >= 1) as Hge. apply pumping_constant_ge_1. 
+        unfold ge in Hge. apply Hge. }
+      { apply Hpc. }
+    }
+    assert (s1 <> [] \/ s2 <> []) as HNempty.
+    { destruct s1 as [| h1 t1].
+      + destruct s2 as [|h2 t2].
+        * inversion Hl1.
+        * right. discriminate.
+      + destruct s2 as [|h2 t2].
+        * left. discriminate.
+        * left. discriminate. }
+    destruct HNempty as [HNempty1 | HNempty2].
+      + exists []. exists s1. exists s2. 
+        split. simpl. reflexivity. 
+        split. apply HNempty1. simpl. 
+        intros m. apply (napp_star T m). apply Hmatch1. apply Hmatch2.
+      + exists s1. exists s2. exists []. rewrite app_nil_r.
+        split. reflexivity. 
+        split. apply HNempty2.
+        intros m. rewrite app_nil_r. apply MStarApp. apply Hmatch1.
+        inversion Hmatch2.
+        * apply napp_star_nil.
+        * apply napp_star_r. apply (MStarApp s0 s3 re H0 H2).
+Qed.
 (** [] *)
 
 (** **** Exercise: 5 stars, advanced, optional (pumping)
@@ -2008,6 +2121,7 @@ Proof.
     Now here is the usual version of the pumping lemma. In addition to
     requiring that [s2 <> []], it also requires that [length s1 +
     length s2 <= pumping_constant re]. *)
+
 
 Lemma pumping : forall T (re : reg_exp T) s,
   s =~ re ->
@@ -2020,15 +2134,80 @@ Lemma pumping : forall T (re : reg_exp T) s,
 
 (** You may want to copy your proof of weak_pumping below. *)
 Proof.
-  intros T re s Hmatch.
+(*   intros T re s Hmatch.
   induction Hmatch
     as [ | x | s1 re1 s2 re2 Hmatch1 IH1 Hmatch2 IH2
        | s1 re1 re2 Hmatch IH | re1 s2 re2 Hmatch IH
        | re | s1 s2 re Hmatch1 IH1 Hmatch2 IH2 ].
   - (* MEmpty *)
     simpl. intros contra. inversion contra.
-  (* FILL IN HERE *) Admitted.
-
+  - (* MChar *)
+    simpl. intros contra. inversion contra as [Abs | m Abs Zm]. inversion Abs.
+  -  (* MApp *)
+    simpl. intros Hpc. rewrite app_length in Hpc. apply add_le_cases in Hpc.
+    destruct Hpc as [Hpc1 | Hpc2].
+    + apply IH1 in Hpc1. destruct Hpc1 as [hs1 [hs2 [hs3 [Eqhs Hhs]]]].
+      exists hs1. exists hs2. exists (hs3 ++ s2). destruct Hhs as [Hs2NZ [Hle1 Hhs]]. split.
+      { rewrite Eqhs. apply app_quadra_assoc. }
+      {  split. { apply Hs2NZ. }
+         split. { apply le_plus_trans. apply Hle1. }
+        { intros m. rewrite <- app_quadra_assoc. apply MApp.
+          { apply (Hhs m). }
+          { apply Hmatch2. }
+        }
+      }
+    + apply IH2 in Hpc2. destruct Hpc2 as [hs1 [hs2 [hs3 [Eqhs [Hs2NZ [Hle Hhs]]]]]].
+      exists (s1 ++ hs1). exists hs2. exists hs3. split.
+      { rewrite Eqhs. rewrite app_assoc. reflexivity. }
+      { split. apply Hs2NZ.
+        split. 
+        { intros m. rewrite <- app_assoc. apply MApp.
+          { apply Hmatch1. }
+          { apply Hhs. }
+        }
+      }
+  - (* MUnionL *)
+    simpl. intros Hpc. apply plus_le in Hpc. destruct Hpc as [Hpc1 _].
+    apply IH in Hpc1. destruct Hpc1 as [hs1 [hs2 [hs3 [Eqhs [NZ Hhs]]]]].
+    exists hs1. exists hs2. exists hs3. split. apply Eqhs. split. apply NZ.
+    intros m. apply MUnionL. apply (Hhs m).
+  - (* MUnionR *)
+    simpl. intros Hpc. apply plus_le in Hpc. destruct Hpc as [_ Hpc2].
+    apply IH in Hpc2. destruct Hpc2 as [hs1 [hs2 [hs3 [Eqhs [NZ Hhs]]]]].
+    exists hs1. exists hs2. exists hs3. split. apply Eqhs. split. apply NZ.
+    intros m. apply MUnionR. apply (Hhs m).
+  - (* MStar0 *)
+    intros Hpc. simpl in Hpc. 
+    assert (pumping_constant re >= 1) as Hp1. apply pumping_constant_le0_false in Hpc. inversion Hpc.
+    apply pumping_constant_le0_false in Hpc. inversion Hpc.
+  - (* MStarApp *)
+    simpl. intros Hpc. assert (1 <= length (s1 ++ s2)) as Hl1.
+    { apply (le_trans 1 (pumping_constant re) (length (s1 ++ s2))). 
+      { assert (pumping_constant re >= 1) as Hge. apply pumping_constant_ge_1. 
+        unfold ge in Hge. apply Hge. }
+      { apply Hpc. }
+    }
+    assert (s1 <> [] \/ s2 <> []) as HNempty.
+    { destruct s1 as [| h1 t1].
+      + destruct s2 as [|h2 t2].
+        * inversion Hl1.
+        * right. discriminate.
+      + destruct s2 as [|h2 t2].
+        * left. discriminate.
+        * left. discriminate. }
+    destruct HNempty as [HNempty1 | HNempty2].
+      + exists []. exists s1. exists s2. 
+        split. simpl. reflexivity. 
+        split. apply HNempty1. simpl. 
+        intros m. apply (napp_star T m). apply Hmatch1. apply Hmatch2.
+      + exists s1. exists s2. exists []. rewrite app_nil_r.
+        split. reflexivity. 
+        split. apply HNempty2.
+        intros m. rewrite app_nil_r. apply MStarApp. apply Hmatch1.
+        inversion Hmatch2.
+        * apply napp_star_nil.
+        * apply napp_star_r. apply (MStarApp s0 s3 re H0 H2). *)
+Admitted.
 End Pumping.
 (** [] *)
 
@@ -2107,7 +2286,14 @@ Qed.
 (** **** Exercise: 2 stars, standard, especially useful (reflect_iff) *)
 Theorem reflect_iff : forall P b, reflect P b -> (P <-> b = true).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros P b H. inversion H as [HP Hb| HNP Hnb].
+    - split. 
+      + intros _. reflexivity.
+      + intros _. apply HP.
+    - split.
+      + intros HP. apply HNP in HP. inversion HP.
+      + discriminate.
+Qed.
 (** [] *)
 
 (** The advantage of [reflect] over the normal "if and only if"
@@ -2158,7 +2344,14 @@ Fixpoint count n l :=
 Theorem eqbP_practice : forall n l,
   count n l = 0 -> ~(In n l).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros n l. induction l as [|h t Hl].
+  - intros _ [].
+  - simpl. destruct (eqbP n h) as [Heq | Hneq].
+    + discriminate.
+    + intros HZ. intros [Heq | HIn].
+      * rewrite Heq in Hneq. destruct Hneq. reflexivity.
+      * apply Hl in HZ. apply HZ in HIn. inversion HIn. 
+Qed.
 (** [] *)
 
 (** This small example shows reflection giving us a small gain in
@@ -2191,7 +2384,9 @@ Proof.
     [nostutter]. *)
 
 Inductive nostutter {X:Type} : list X -> Prop :=
- (* FILL IN HERE *)
+  | NstEmpty : nostutter []
+  | NstSingle x : nostutter [x]
+  | NstBoth x y t (HNeq: x <> y) (HTail: nostutter (y::t)): nostutter (x::y::t)
 .
 (** Make sure each of these tests succeeds, but feel free to change
     the suggested proof (in comments) if the given one doesn't work
@@ -2203,35 +2398,25 @@ Inductive nostutter {X:Type} : list X -> Prop :=
     just uncomment and use them as-is, but you can also prove each
     example with more basic tactics.)  *)
 
-Example test_nostutter_1: nostutter [3;1;4;1;5;6].
-(* FILL IN HERE *) Admitted.
-(* 
-  Proof. repeat constructor; apply eqb_neq; auto.
-  Qed.
-*)
+Example test_nostutter_1 : nostutter [3;1;4;1;5;6].
+Proof. repeat constructor; apply eqb_neq; auto. Qed.
 
-Example test_nostutter_2:  nostutter (@nil nat).
-(* FILL IN HERE *) Admitted.
-(* 
-  Proof. repeat constructor; apply eqb_neq; auto.
-  Qed.
-*)
 
-Example test_nostutter_3:  nostutter [5].
-(* FILL IN HERE *) Admitted.
-(* 
-  Proof. repeat constructor; auto. Qed.
-*)
+Example test_nostutter_2 : nostutter (@nil nat).
+Proof. repeat constructor; apply eqb_neq; auto. Qed.
 
-Example test_nostutter_4:      not (nostutter [3;1;1;4]).
-(* FILL IN HERE *) Admitted.
-(* 
-  Proof. intro.
+
+Example test_nostutter_3 : nostutter [5].
+Proof. repeat constructor; auto. Qed.
+
+
+Example test_nostutter_4 : not (nostutter [3;1;1;4]).
+Proof. intro.
   repeat match goal with
     h: nostutter _ |- _ => inversion h; clear h; subst
   end.
-  contradiction; auto. Qed.
-*)
+  contradiction; auto.
+Qed.
 
 (* Do not modify the following line: *)
 Definition manual_grade_for_nostutter : option (nat*string) := None.
@@ -2308,7 +2493,30 @@ Definition manual_grade_for_filter_challenge : option (nat*string) := None.
        forall l, pal l -> l = rev l.
 *)
 
-(* FILL IN HERE *)
+Inductive pal {T: Type} : list T -> Prop :=
+  | PalEmpty: pal []
+  | PalSingle x: pal [x]
+  | PalSym x mid (H: pal mid) : pal ([x] ++ mid ++ [x])
+.
+
+Lemma pal_app_rev : forall T (l: list T), pal (l ++ rev l).
+Proof.
+  intros T l. induction l as [|h t Hl].
+  - simpl. apply PalEmpty.
+  - simpl. assert (h :: t ++ rev t ++ [h] = [h] ++ (t ++ rev t) ++ [h]) as HSym.
+      { rewrite app_assoc. reflexivity. }
+      rewrite HSym. apply PalSym. apply Hl.
+Qed.
+
+Lemma pal_rev : forall T (l: list T), pal l -> l = rev l.
+Proof.
+  intros T l. induction l as [|h t Hl].
+  - intros _. simpl. reflexivity.
+  - intros HPal. induction HPal as [| |x mid PalMid RevMid].
+    + simpl. reflexivity.
+    + simpl. reflexivity.
+    + simpl. rewrite rev_app_distr. rewrite <- RevMid. simpl. reflexivity.
+Qed.
 
 (* Do not modify the following line: *)
 Definition manual_grade_for_pal_pal_app_rev_pal_rev : option (nat*string) := None.
@@ -2318,14 +2526,61 @@ Definition manual_grade_for_pal_pal_app_rev_pal_rev : option (nat*string) := Non
 
     Again, the converse direction is significantly more difficult, due
     to the lack of evidence.  Using your definition of [pal] from the
-    previous exercise, prove that
+    previous exercise, prove that forall l = rev l -> pal l.
 
-     forall l, l = rev l -> pal l.
+
 *)
 
-(* FILL IN HERE
+Lemma app_injective : forall (T: Type) (la lb lc: list T), la ++ lc = lb ++ lc -> la = lb.
+Proof.
+  intros T la. induction la as [|ha ta Ha].
+    + intros lb. simpl. induction lb as [|hb tb Hb].
+      - reflexivity.
+      - intros lc H. induction lc as [|hc tc Hc].
+        * simpl in H. discriminate H.
+        * simpl in H. inversion H as [[Hh Ht]].
+          assert (rev tc = rev (tb ++ hb :: tc)) as Hrev. { rewrite <- Ht. reflexivity. }
+          rewrite rev_app_distr in Hrev. simpl in Hrev. rewrite <- app_assoc in Hrev. simpl in Hrev.
+Admitted.
 
-    [] *)
+Lemma head_exist_tail_left : forall T h (la lb: list T), 
+  h::la = lb ++ [h] -> (la = [] /\ lb = []) 
+  \/ exists ma, la = ma ++ [h].
+Proof.
+  intros T h la. destruct la as [|ha ta].
+    + intros lb H. destruct lb as [|hb tb].
+      - left. split. reflexivity. reflexivity.
+      - left. split. reflexivity.
+        apply (app_injective T [] (hb::tb) [h]) in H. 
+        rewrite H. reflexivity.
+    + intros lb H. destruct lb as [|hb tb].
+      - discriminate H.
+      - right. inversion H. exists tb. apply H2.
+Qed.
+
+Lemma head_exist_tail_right : forall T h (la lb: list T), 
+  h::la = lb ++ [h] -> (la = [] /\ lb = []) 
+  \/ exists mb, lb = h :: mb.
+Proof.
+  intros T h la. destruct la as [|ha ta].
+    + intros lb H. destruct lb as [|hb tb].
+      - left. split. reflexivity. reflexivity.
+      - left. split. reflexivity.
+        apply (app_injective T [] (hb::tb) [h]) in H. 
+        rewrite H. reflexivity.
+    + intros lb H. destruct lb as [|hb tb].
+      - discriminate H.
+      - right. inversion H. exists tb. reflexivity.
+Qed.
+
+Lemma palindrome_converse : forall T (l: list T), l = rev l -> pal l.
+Proof.
+  intros T l. induction l as [|h t Hl].
+  + simpl. intros _. apply PalEmpty.
+  + simpl. 
+Admitted.
+
+
 
 (** **** Exercise: 4 stars, advanced, optional (NoDup)
 
