@@ -72,7 +72,11 @@ Proof.
 Theorem plus_one_r' : forall n:nat,
   n + 1 = S n.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  apply nat_ind.
+  - reflexivity.
+  - intros n H. assert (S n + 1 = S(n + 1)) as Hs. { reflexivity. } 
+    rewrite Hs. rewrite H. reflexivity.
+Qed.
 (** [] *)
 
 (** Coq generates induction principles for every datatype
@@ -201,8 +205,14 @@ Definition manual_grade_for_booltree_ind : option (nat*string) := None.
     principle Coq generates is that given above: *)
 
 Inductive Toy : Type :=
-  (* FILL IN HERE *)
-.
+  | con1 (b: bool)
+  | con2 (n: nat) (t: Toy).
+
+Check Toy_ind : forall P : Toy -> Prop,
+    (forall b : bool, P (con1 b)) ->
+    (forall (n : nat) (t : Toy), P t -> P (con2 n t)) ->
+    forall t : Toy, P t.
+
 (* Do not modify the following line: *)
 Definition manual_grade_for_toy_ind : option (nat*string) := None.
 (** [] *)
@@ -263,6 +273,17 @@ Check tree_ind.
                forall n : nat, P (constr3 X m n)) ->
             forall m : mytype X, P m
 *) 
+Inductive mytype (X: Type): Type :=
+  | constr1 (x: X)
+  | constr2 (n: nat)
+  | constr3 (m : mytype X) (n: nat).
+Check mytype_ind: forall (X : Type) (P : mytype X -> Prop),
+  (forall x : X, P (constr1 X x)) ->
+  (forall n : nat, P (constr2 X n)) ->
+  (forall m : mytype X, P m ->
+     forall n : nat, P (constr3 X m n)) ->
+  forall m : mytype X, P m.
+   
 (** [] *)
 
 (** **** Exercise: 1 star, standard, optional (foo)
@@ -278,6 +299,17 @@ Check tree_ind.
                (forall n : nat, P (f1 n)) -> P (quux X Y f1)) ->
              forall f2 : foo X Y, P f2
 *) 
+Inductive foo (X Y: Type): Type :=
+  | bar (x: X)
+  | baz (y: Y)
+  | quux (f1: nat -> (foo X Y)).
+Check foo_ind: forall (X Y : Type) (P : foo X Y -> Prop),
+  (forall x : X, P (bar X Y x)) ->
+  (forall y : Y, P (baz X Y y)) ->
+  (forall f1 : nat -> foo X Y,
+   (forall n : nat, P (f1 n)) -> P (quux X Y f1)) ->
+  forall f2 : foo X Y, P f2.
+
 (** [] *)
 
 (** **** Exercise: 1 star, standard, optional (foo')
@@ -294,11 +326,12 @@ Inductive foo' (X:Type) : Type :=
      foo'_ind :
         forall (X : Type) (P : foo' X -> Prop),
               (forall (l : list X) (f : foo' X),
-                    _______________________ ->
-                    _______________________   ) ->
-             ___________________________________________ ->
-             forall f : foo' X, ________________________
+                    P f ->
+                    P (C1 X l f)   ) ->
+             P (C2 X) ->
+             forall f : foo' X, P f
 *)
+Check foo'_ind.
 
 (** [] *)
 
@@ -436,9 +469,20 @@ Proof.
     induction, and state the theorem and proof in terms of this
     defined proposition.  *)
 
-(* FILL IN HERE
+Definition P_add_assoc: nat -> nat -> Prop :=
+  fun n m => n + m = m + n. 
 
-    [] *)
+Theorem add_assoc_ex: forall n m: nat, P_add_assoc n m.
+Proof.
+  unfold P_add_assoc. induction n as [|n' Hn].
+  - induction m as [|m' Hm].
+    + reflexivity.
+    + rewrite <- plus_n_Sm. rewrite Hm. reflexivity.
+  - induction m as [|m' Hm].
+    + rewrite <- plus_n_Sm. rewrite <- Hn. reflexivity.
+    + rewrite <- plus_n_Sm. rewrite Hm. reflexivity.
+Qed.
+(* [] *)
 
 (* ################################################################# *)
 (** * Induction Principles for Propositions *)
