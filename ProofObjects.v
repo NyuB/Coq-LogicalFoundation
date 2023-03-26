@@ -558,7 +558,7 @@ Definition false_implies_zero_eq_one : False -> 0 = 1 :=
 
     Construct a proof object for the following proposition. *)
 
-Definition ex_falso_quodlibet' : forall P, False -> P := (fun _ => fun f => match f with end).
+Definition ex_falso_quodlibet' : forall P, False -> P := fun _ => fun f => match f with end.
 (** [] *)
 
 End Props.
@@ -631,7 +631,8 @@ Definition singleton : forall (X:Type) (x:X), []++[x] == x::[]  :=
 Lemma equality__leibniz_equality : forall (X : Type) (x y: X),
   x == y -> forall P:X->Prop, P x -> P y.
 Proof.
-(* FILL IN HERE *) Admitted.
+  intros X x y H. destruct H. intros P Px. apply Px. 
+Qed.
 (** [] *)
 
 (** **** Exercise: 3 stars, standard, optional (leibniz_equality__equality)
@@ -644,7 +645,10 @@ Proof.
 Lemma leibniz_equality__equality : forall (X : Type) (x y: X),
   (forall P:X->Prop, P x -> P y) -> x == y.
 Proof.
-(* FILL IN HERE *) Admitted.
+  intros X x y H. 
+  apply (H (fun z => x == z)). (* Apply the hypothesis P x -> P y to the property 'being equal to x'*)
+  apply eq_refl.
+Qed.
 
 (** [] *)
 
