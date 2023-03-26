@@ -97,25 +97,33 @@ Proof.
     apply Hc with (x := 0).
     - apply le_n.
     - apply le_S. apply le_n. }
-  discriminate Nonsense.   Qed.
+  discriminate Nonsense.
+Qed.
 
 (** **** Exercise: 2 stars, standard, optional (total_relation_not_partial)
 
     Show that the [total_relation] defined in (an exercise in)
     [IndProp] is not a partial function. *)
-
-(* FILL IN HERE
-
-    [] *)
+Theorem total_relation_not_a_partial_function: ~ (partial_function total_relation).
+Proof.
+  unfold not. unfold partial_function. intros H. assert (0 = 1) as Nonsense.
+  { apply (H 0 0 1). 
+    + apply total. right. right. reflexivity.
+    + apply total. left. unfold lt. apply le_n.
+  }
+  discriminate Nonsense.
+Qed.
+(* [] *)
 
 (** **** Exercise: 2 stars, standard, optional (empty_relation_partial)
 
     Show that the [empty_relation] defined in (an exercise in)
     [IndProp] is a partial function. *)
-
-(* FILL IN HERE
-
-    [] *)
+Theorem empty_relation_is_a_partial_function: partial_function empty_relation.
+Proof.
+  unfold partial_function. intros _ _ _ []. 
+Qed.
+(* [] *)
 
 (* ----------------------------------------------------------------- *)
 (** *** Reflexive Relations *)
