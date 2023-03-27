@@ -177,8 +177,10 @@ Proof.
   (* Prove this by induction on evidence that [m] is less than [o]. *)
   unfold lt. unfold transitive.
   intros n m o Hnm Hmo.
-  induction Hmo as [| m' Hm'o].
-    (* FILL IN HERE *) Admitted.
+  induction Hmo as [| m' Hm'o IHm'o].
+  + apply le_S in Hnm. apply Hnm.
+  + apply le_S in IHm'o. apply IHm'o.
+Qed.
 (** [] *)
 
 (** **** Exercise: 2 stars, standard, optional (lt_trans'')
@@ -190,8 +192,10 @@ Theorem lt_trans'' :
 Proof.
   unfold lt. unfold transitive.
   intros n m o Hnm Hmo.
-  induction o as [| o'].
-  (* FILL IN HERE *) Admitted.
+  induction o as [| o' Ho'].
+  + induction Hmo. { apply le_S. apply Hnm. } { apply le_S. apply IHHmo. }
+  + induction Hmo. { apply le_S. apply Hnm. } { apply le_S. apply IHHmo. }
+Qed.
 (** [] *)
 
 (** The transitivity of [le], in turn, can be used to prove some facts
@@ -209,7 +213,10 @@ Qed.
 Theorem le_S_n : forall n m,
   (S n <= S m) -> (n <= m).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros n m H. inversion H.
+  + apply le_reflexive.
+  + apply le_Sn_le. apply H1.
+Qed.
 (** [] *)
 
 (** **** Exercise: 2 stars, standard, optional (le_Sn_n_inf)
@@ -225,12 +232,17 @@ Proof.
     (* FILL IN HERE
 
     [] *)
-
+Search le.
 (** **** Exercise: 1 star, standard, optional (le_Sn_n) *)
 Theorem le_Sn_n : forall n,
   ~ (S n <= n).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  unfold not. intros n H. induction n as [|n' Hn].
+  + inversion H.
+  + inversion H. 
+    - apply Hn. rewrite H1. apply le_reflexive.
+    - apply Hn. apply le_S_n. apply H.
+Qed.
 (** [] *)
 
 (** Reflexivity and transitivity are the main concepts we'll need for
@@ -249,7 +261,11 @@ Definition symmetric {X: Type} (R: relation X) :=
 Theorem le_not_symmetric :
   ~ (symmetric le).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  unfold not. unfold symmetric. intros H. assert (1 <= 0) as NS. {
+    apply H. apply le_0_n.
+  }
+  inversion NS.
+Qed.
 (** [] *)
 
 (** A relation [R] is _antisymmetric_ if [R a b] and [R b a] together
@@ -263,16 +279,29 @@ Definition antisymmetric {X: Type} (R: relation X) :=
 Theorem le_antisymmetric :
   antisymmetric le.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  unfold antisymmetric. intros a b Hab Hba. induction a as [|a' IHa].
+  + inversion Hba. { reflexivity. }
+  + inversion Hba.
+    - reflexivity.
+    - assert (a'=b) as Heab. {
+       apply IHa. apply le_Sn_le. apply Hab. apply H0.
+      }
+      rewrite Heab in Hab. apply le_Sn_n in Hab. destruct Hab.
+Qed.
 (** [] *)
-
+Search le.
 (** **** Exercise: 2 stars, standard, optional (le_step) *)
 Theorem le_step : forall n m p,
   n < m ->
   m <= S p ->
   n <= p.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros n m p Hnm Hmp. inversion Hnm.
+  + rewrite <- H in Hmp. apply Sn_le_Sm__n_le_m. apply Hmp.
+  + rewrite <- H0 in Hmp. apply Sn_le_Sm__n_le_m in Hmp.
+    assert (S n <= p). apply (le_trans (S n) m0 p). apply H. apply Hmp.
+    apply le_S in H1. apply le_S_n. apply H1.
+Qed.
 (** [] *)
 
 (* ----------------------------------------------------------------- *)
@@ -388,7 +417,10 @@ Lemma rsc_trans :
       clos_refl_trans_1n R y z ->
       clos_refl_trans_1n R x z.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros X R x y z Ha Hb. induction Ha.
+  - apply Hb.
+  - apply IHHa in Hb. apply (rt1n_trans R x y z Hxy Hb). 
+Qed.
 (** [] *)
 
 (** Then we use these facts to prove that the two definitions of
@@ -400,7 +432,16 @@ Theorem rtc_rsc_coincide :
   forall (X:Type) (R: relation X) (x y : X),
     clos_refl_trans R x y <-> clos_refl_trans_1n R x y.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros X R x y. split.
+  + intros H. induction H as [x y|x|x y z H1 Hclos1 H2 Hclos2].
+    - apply (rsc_R X R x y H).
+    - apply rt1n_refl.
+    - apply (rsc_trans X R x y z Hclos1 Hclos2).
+  + intros H. induction H as [x|x y z Hxy H1 H].
+    - apply rt_refl.
+    - apply (rt_trans R x y z).
+      { apply (rt_step R x y Hxy). } { apply H. }
+Qed.
 (** [] *)
 
 (* 2021-08-11 15:08 *)
