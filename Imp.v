@@ -1726,7 +1726,16 @@ Proof.
 
     State and prove a specification of [XtimesYinZ]. *)
 
-(* FILL IN HERE *)
+Theorem xyz_spec : forall st x y st',
+  st X = x ->
+  st Y = y ->
+  st =[ XtimesYinZ ]=> st' ->
+  st' Z = x * y.
+Proof.
+  intros st x y st' HX HY HEval.
+  inversion HEval.
+  simpl in H3. rewrite HX in H3. rewrite HY in H3. rewrite H3. reflexivity.
+Qed.
 
 (* Do not modify the following line: *)
 Definition manual_grade_for_XtimesYinZ_spec : option (nat*string) := None.
@@ -1744,8 +1753,11 @@ Proof.
       [loopdef] terminates.  Most of the cases are immediately
       contradictory (and so can be solved in one step with
       [discriminate]). *)
-
-  (* FILL IN HERE *) Admitted.
+  induction contra;
+  try discriminate.
+  - inversion Heqloopdef. rewrite H1 in H. simpl in H. discriminate H.
+  - apply IHcontra2 in Heqloopdef. destruct Heqloopdef.
+Qed.
 (** [] *)
 
 (** **** Exercise: 3 stars, standard (no_whiles_eqv)
@@ -1772,13 +1784,38 @@ Fixpoint no_whiles (c : com) : bool :=
     while loops.  Then prove its equivalence with [no_whiles]. *)
 
 Inductive no_whilesR: com -> Prop :=
- (* FILL IN HERE *)
-.
+  | NW_Skip : no_whilesR CSkip
+  | NW_Asgn (v: string) (e: aexp): no_whilesR (CAsgn v e)
+  | NW_Seq (l: com) (r: com) (Hl: no_whilesR l) (Hr: no_whilesR r) : no_whilesR (CSeq l r)
+  | NW_If (t: com) (f: com) (Ht: no_whilesR t) (Hf: no_whilesR f) : forall b, no_whilesR (CIf b t f)
+  .
+
+Search (andb _ _ = true).
 
 Theorem no_whiles_eqv:
   forall c, no_whiles c = true <-> no_whilesR c.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  split.
+  + intros H. induction c.
+    - apply NW_Skip.
+    - apply NW_Asgn.
+    - inversion H as [Hcc]. apply andb_prop in Hcc. inversion Hcc as [Hc1 Hc2].
+      apply NW_Seq. 
+        { apply IHc1. apply Hc1. }
+        { apply IHc2. apply Hc2. }
+    - inversion H as [Hcc]. apply andb_prop in Hcc. inversion Hcc as [Hc1 Hc2]. 
+      apply NW_If.
+        { apply IHc1. apply Hc1. }
+        { apply IHc2. apply Hc2. }
+    - simpl in H. discriminate H.
+  + intros H. induction H.
+    - simpl. reflexivity.
+    - simpl. reflexivity.
+    - simpl. rewrite IHno_whilesR1. rewrite IHno_whilesR2. 
+      simpl. reflexivity.
+    - simpl. rewrite IHno_whilesR1. rewrite IHno_whilesR2. 
+      simpl. reflexivity.
+Qed.
 (** [] *)
 
 (** **** Exercise: 4 stars, standard (no_whiles_terminating)
@@ -1788,7 +1825,28 @@ Proof.
 
     Use either [no_whiles] or [no_whilesR], as you prefer. *)
 
-(* FILL IN HERE *)
+Theorem no_whiles_terminating : forall (st: state) (prog: com), 
+  no_whilesR prog -> exists st',  st =[prog]=> st'.
+Proof.
+  intros st prog H. generalize dependent st. induction H
+    as [ | v e | comL comR HL IHL HR IHR | t f HT IHT HF IHF].
+  + intros st. exists st. apply E_Skip.
+  + intros st. exists (v !-> (aeval st e); st). apply E_Asgn. reflexivity.
+  + intros st. 
+    assert (exists stl, st=[comL]=>stl) as Hestl. { apply IHL. }
+    inversion Hestl as [stl Hstl].
+    assert (exists str, stl=[comR]=>str) as Hestr. { apply IHR. }
+    inversion Hestr as [str Hstr].
+    exists str. apply (E_Seq comL comR st stl str Hstl Hstr).
+  + intros st.
+    assert (exists stt, st =[t]=> stt) as Het. { apply IHT. }
+    assert (exists stf, st =[f]=> stf) as Hef. { apply IHF. }
+    inversion Het as [stt Hstt].
+    inversion Hef as [stf Hstf].
+    destruct (beval st b) as [] eqn: eb.
+    - exists stt. apply (E_IfTrue st stt b t f eb Hstt).
+    - exists stf. apply (E_IfFalse st stf b t f eb Hstf).
+Qed.
 
 (* Do not modify the following line: *)
 Definition manual_grade_for_no_whiles_terminating : option (nat*string) := None.
@@ -1858,38 +1916,48 @@ Inductive sinstr : Type :=
     offending instruction and continue with the next one.  *)
 
 Fixpoint s_execute (st : state) (stack : list nat)
-                   (prog : list sinstr)
-                 : list nat
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+                   (prog : list sinstr): list nat :=
+  match (prog, stack) with
+  | ([], _) => stack
+  | ((SLoad x) :: prog', _) => s_execute st ((st x) :: stack) prog' 
+  | ((SPush n) :: prog', _) => s_execute st (n :: stack) prog'
+  | (SPlus :: prog', a :: b :: stack') => s_execute st ((b + a) :: stack') prog'
+  | (SMinus :: prog', a :: b :: stack') => s_execute st ((b - a) :: stack') prog'
+  | (SMult :: prog', a :: b :: stack') => s_execute st ((b * a) :: stack') prog'
+  | (_ :: prog', _) => s_execute st stack prog'
+  end.
 
 Check s_execute.
 
 Example s_execute1 :
      s_execute empty_st []
        [SPush 5; SPush 3; SPush 1; SMinus]
-   = [2; 5].
-(* FILL IN HERE *) Admitted.
+   = [2; 5]. Proof. reflexivity. Qed.
 
 Example s_execute2 :
      s_execute (X !-> 3) [3;4]
        [SPush 4; SLoad X; SMult; SPlus]
-   = [15; 4].
-(* FILL IN HERE *) Admitted.
+   = [15; 4]. Proof. reflexivity. Qed.
 
 (** Next, write a function that compiles an [aexp] into a stack
     machine program. The effect of running the program should be the
     same as pushing the value of the expression on the stack. *)
 
-Fixpoint s_compile (e : aexp) : list sinstr
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+Fixpoint s_compile (e : aexp) : list sinstr := 
+  match e with
+  | ANum n => [SPush n]
+  | AId x => [SLoad x]
+  | APlus a b => ((s_compile a) ++ (s_compile b)) ++ [SPlus]
+  | AMinus a b => ((s_compile a) ++ (s_compile b)) ++ [SMinus]
+  | AMult a b => ((s_compile a) ++ (s_compile b)) ++ [SMult]
+  end.
 
 (** After you've defined [s_compile], prove the following to test
     that it works. *)
 
 Example s_compile1 :
   s_compile <{ X - (2 * Y) }>
-  = [SLoad X; SPush 2; SLoad Y; SMult; SMinus].
-(* FILL IN HERE *) Admitted.
+  = [SLoad X; SPush 2; SLoad Y; SMult; SMinus]. Proof. simpl. reflexivity. Qed.
 (** [] *)
 
 (** **** Exercise: 3 stars, standard (execute_app) *)
@@ -1902,7 +1970,20 @@ Example s_compile1 :
 Theorem execute_app : forall st p1 p2 stack,
   s_execute st stack (p1 ++ p2) = s_execute st (s_execute st stack p1) p2.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros st p1. induction p1 as [ |h1 t1 IHp1].
+  - intros p2 stack. simpl. reflexivity.
+  - intros p2 stack. induction h1;
+    try (simpl; apply IHp1 ).
+    + induction stack as [ | h t Hs].
+      { simpl. apply IHp1. }
+      { induction t; simpl; apply IHp1. }
+    + induction stack as [ | h t Hs].
+      { simpl. apply IHp1. }
+      { induction t; simpl; apply IHp1. }
+    + induction stack as [ | h t Hs].
+      { simpl. apply IHp1. }
+      { induction t; simpl; apply IHp1. }
+Qed.
 
 (** [] *)
 
@@ -1916,14 +1997,36 @@ Proof.
 Lemma s_compile_correct_aux : forall st e stack,
   s_execute st stack (s_compile e) = aeval st e :: stack.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros st e. induction e.
+  + intros stack. simpl. reflexivity.
+  + intros stack. simpl. reflexivity.
+  + intros stack. simpl. rewrite execute_app. rewrite execute_app. rewrite IHe1. simpl.
+    destruct (s_execute st (aeval st e1 :: stack) (s_compile e2)) eqn: ed.
+    - simpl. rewrite IHe2 in ed. discriminate ed.
+    - destruct l.
+      { rewrite IHe2 in ed. discriminate ed. }
+      { rewrite IHe2 in ed. inversion ed. rewrite H0. rewrite H1. reflexivity. }
+  + intros stack. simpl. rewrite execute_app. rewrite execute_app. rewrite IHe1. simpl.
+    destruct (s_execute st (aeval st e1 :: stack) (s_compile e2)) eqn: ed.
+    - simpl. rewrite IHe2 in ed. discriminate ed.
+    - destruct l.
+      { rewrite IHe2 in ed. discriminate ed. }
+      { rewrite IHe2 in ed. inversion ed. rewrite H0. rewrite H1. reflexivity. }
+  + intros stack. simpl. rewrite execute_app. rewrite execute_app. rewrite IHe1. simpl.
+    destruct (s_execute st (aeval st e1 :: stack) (s_compile e2)) eqn: ed.
+    - simpl. rewrite IHe2 in ed. discriminate ed.
+    - destruct l.
+      { rewrite IHe2 in ed. discriminate ed. }
+      { rewrite IHe2 in ed. inversion ed. rewrite H0. rewrite H1. reflexivity. }  
+Qed.
 
 (** The main theorem should be a very easy corollary of that lemma. *)
 
 Theorem s_compile_correct : forall (st : state) (e : aexp),
   s_execute st [] (s_compile e) = [ aeval st e ].
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros st e. apply s_compile_correct_aux.
+Qed.
 
 (** [] *)
 
