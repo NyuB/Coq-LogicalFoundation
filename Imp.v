@@ -2047,9 +2047,23 @@ Qed.
     would _not_ be equivalent to the original, since it would make more
     programs terminate.) *)
 
-(* FILL IN HERE
+Fixpoint beval_sc (st : state) (b : bexp) : bool :=
+  match b with
+  | <{true}>      => true
+  | <{false}>     => false
+  | <{a1 = a2}>   => (aeval st a1) =? (aeval st a2)
+  | <{a1 <= a2}>  => (aeval st a1) <=? (aeval st a2)
+  | <{~ b1}>      => negb (beval st b1)
+  | <{b1 && b2}>  => if (beval st b1) then (beval st b2) else false
+  end.
 
-    [] *)
+Theorem beval_sc_iff_beval : forall (st: state) (b: bexp), beval st b = beval_sc st b.
+Proof.
+  intros st b. induction b;
+  try (simpl; reflexivity ).
+Qed.
+
+(* [] *)
 
 Module BreakImp.
 (** **** Exercise: 4 stars, advanced (break_imp)
@@ -2171,7 +2185,38 @@ Reserved Notation "st '=[' c ']=>' st' '/' s"
 Inductive ceval : com -> state -> result -> state -> Prop :=
   | E_Skip : forall st,
       st =[ CSkip ]=> st / SContinue
-  (* FILL IN HERE *)
+  | E_Break : forall st,
+      st =[ CBreak ]=> st / SBreak
+  | E_Asgn  : forall st a n x,
+      aeval st a = n ->
+      st =[ x := a ]=> (x !-> n ; st) / SContinue
+  | E_Seq_Continue : forall c1 c2 st st' st'' status,
+      st  =[ c1 ]=> st'  / SContinue->
+      st' =[ c2 ]=> st'' / status ->
+      st  =[ c1 ; c2 ]=> st'' / status
+  | E_Seq_Break : forall c1 c2 st st',
+    st  =[ c1 ]=> st'  / SBreak ->
+    st  =[ c1 ; c2 ]=> st' / SBreak
+  | E_IfTrue : forall st st' status b c1 c2,
+      beval st b = true ->
+      st =[ c1 ]=> st' /status ->
+      st =[ if b then c1 else c2 end]=> st' / status
+  | E_IfFalse : forall st st' status b c1 c2,
+      beval st b = false ->
+      st =[ c2 ]=> st' / status ->
+      st =[ if b then c1 else c2 end]=> st' / status
+  | E_WhileFalse : forall b st c,
+      beval st b = false ->
+      st =[ while b do c end ]=> st / SContinue
+  | E_WhileTrueBreak : forall st st' b c,
+      beval st b = true ->
+      st  =[ c ]=> st' / SBreak ->
+      st  =[ while b do c end ]=> st' / SContinue
+  | E_WhileTrueContinue : forall st st' st'' status b c,
+      beval st b = true ->
+      st  =[ c ]=> st' / SContinue ->
+      st' =[ while b do c end ]=> st'' / status ->
+      st  =[ while b do c end ]=> st' / SContinue
 
   where "st '=[' c ']=>' st' '/' s" := (ceval c st s st').
 
@@ -2181,33 +2226,66 @@ Theorem break_ignore : forall c st st' s,
      st =[ break; c ]=> st' / s ->
      st = st'.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros c st st' s H. remember (<{ break;c }> ) as prog. induction H;
+  try (reflexivity);
+  try (discriminate Heqprog).
+  - inversion Heqprog. rewrite H2 in H. inversion H.
+  - inversion Heqprog. rewrite H1 in H. inversion H. reflexivity.
+Qed.
 
 Theorem while_continue : forall b c st st' s,
   st =[ while b do c end ]=> st' / s ->
   s = SContinue.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros b c st st' s H. remember (<{ while b do c end }>) as prog. induction H;
+  try (reflexivity);
+  try (discriminate Heqprog).
+Qed.
 
 Theorem while_stops_on_break : forall b c st st',
   beval st b = true ->
   st =[ c ]=> st' / SBreak ->
   st =[ while b do c end ]=> st' / SContinue.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros b c st st' H H'. induction c.
+  - inversion H'.
+  - inversion H'. apply E_WhileTrueBreak.
+    + rewrite H3 in H. apply H.
+    + apply E_Break.
+  - inversion H'.
+  - inversion H'. 
+    + apply E_WhileTrueBreak.
+      { apply H. }
+      { apply H'. }
+    + apply E_WhileTrueBreak.
+      { apply H. }
+      { apply H'. }
+  - inversion H'.
+    + apply E_WhileTrueBreak.
+      { apply H. }
+      { apply H'. }
+    + apply E_WhileTrueBreak.
+      { apply H. }
+      { apply H'. }
+  - inversion H'.
+Qed.
 
 Theorem seq_continue : forall c1 c2 st st' st'',
   st =[ c1 ]=> st' / SContinue ->
   st' =[ c2 ]=> st'' / SContinue ->
   st =[ c1 ; c2 ]=> st'' / SContinue.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros c1 c2 st st' st'' H H'.
+  apply (E_Seq_Continue c1 c2 st st' st'' SContinue H H').
+Qed.
 
 Theorem seq_stops_on_break : forall c1 c2 st st',
   st =[ c1 ]=> st' / SBreak ->
   st =[ c1 ; c2 ]=> st' / SBreak.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros c1 c2 st st' H.
+  apply (E_Seq_Break c1 c2 st st' H).
+Qed.
 (** [] *)
 
 (** **** Exercise: 3 stars, advanced, optional (while_break_true) *)
