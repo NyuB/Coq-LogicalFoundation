@@ -2212,11 +2212,11 @@ Inductive ceval : com -> state -> result -> state -> Prop :=
       beval st b = true ->
       st  =[ c ]=> st' / SBreak ->
       st  =[ while b do c end ]=> st' / SContinue
-  | E_WhileTrueContinue : forall st st' st'' status b c,
+  | E_WhileTrueContinue : forall st st' st'' b c,
       beval st b = true ->
       st  =[ c ]=> st' / SContinue ->
-      st' =[ while b do c end ]=> st'' / status ->
-      st  =[ while b do c end ]=> st' / SContinue
+      st' =[ while b do c end ]=> st'' / SContinue ->
+      st  =[ while b do c end ]=> st'' / SContinue
 
   where "st '=[' c ']=>' st' '/' s" := (ceval c st s st').
 
@@ -2288,13 +2288,51 @@ Proof.
 Qed.
 (** [] *)
 
+Theorem loop_infinite: forall st st' r, ~(st =[ while true do skip end ]=> st' / r).
+Proof.
+  unfold not. intros st st' r contra. remember (<{ while true do skip end }>) as loopdef. induction contra;
+  try discriminate Heqloopdef.
+  + inversion Heqloopdef as [Heb]. rewrite Heb in H. simpl in H. discriminate H.
+  + inversion Heqloopdef as [[Heb Hec]]. inversion contra.
+    - rewrite Hec in H0. discriminate H0.
+    - rewrite Hec in H2. discriminate H2.
+    - rewrite Hec in H1. discriminate H1.
+    - rewrite Hec in H2. discriminate H2.
+    - rewrite Hec in H2. discriminate H2.
+  + inversion Heqloopdef as [[Heb Hec]]. apply IHcontra2. rewrite Heb. rewrite Hec. reflexivity.
+Qed.
+
+Theorem loop_b_infinite: forall b st st' r, beval st b = true -> ~(st =[ while b do skip end ]=> st' / r).
+Proof.
+  unfold not. intros b st st' r Heb contra. remember (<{ while b do skip end }>) as loopdef. induction contra;
+  try discriminate Heqloopdef.
+  - inversion Heqloopdef as [[Heb']]. rewrite <- Heb' in Heb. rewrite Heb in H. discriminate H.
+  - inversion Heqloopdef as [[Heb' Hec]]. inversion contra;
+    try ( rewrite Hec in H2; discriminate H2 ).
+    + rewrite Hec in H0. discriminate H0.
+    + rewrite Hec in H1. discriminate H1.
+  - inversion Heqloopdef as [[Heb' Hec]]. rewrite Hec in contra1. assert (st = st') as Hs.
+    { inversion contra1. reflexivity. }
+    rewrite <- Hs in IHcontra2. rewrite Heb' in IHcontra2. rewrite Hec in IHcontra2.
+    apply IHcontra2.
+    + apply Heb.
+    + reflexivity.
+Qed.
+
 (** **** Exercise: 3 stars, advanced, optional (while_break_true) *)
 Theorem while_break_true : forall b c st st',
   st =[ while b do c end ]=> st' / SContinue ->
   beval st' b = true ->
   exists st'', st'' =[ c ]=> st' / SBreak.
 Proof.
-(* FILL IN HERE *) Admitted.
+  intros b c st st' H Heb. remember (<{while b do c end}>) as loopdef. induction H;
+  try discriminate Heqloopdef.
+  - inversion Heqloopdef as [[Heb']]. rewrite <- Heb' in Heb. rewrite Heb in H. discriminate H.
+  - inversion Heqloopdef as [[Heb' Hec]]. rewrite Hec in H0. exists st. apply H0.
+  - inversion Heqloopdef as [[Heb' Hec]]. apply IHceval2.
+    + apply Heqloopdef.
+    + apply Heb.
+Qed.
 (** [] *)
 
 (** **** Exercise: 4 stars, advanced, optional (ceval_deterministic) *)
@@ -2303,7 +2341,13 @@ Theorem ceval_deterministic: forall (c:com) st st1 st2 s1 s2,
      st =[ c ]=> st2 / s2 ->
      st1 = st2 /\ s1 = s2.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros c st st1 st2 r1 r2 H1 H2. inversion H1.
+  - rewrite <- H in H2. inversion H2. split. { rewrite H4 in H8. apply H8. } { reflexivity. }
+  - rewrite <- H in H2. inversion H2. split. { rewrite H4 in H8. apply H8. } { reflexivity. }
+  - rewrite <- H0 in H2. inversion H2. split. { rewrite H in H11. rewrite H11. reflexivity. } { reflexivity. }
+  - rewrite <- H3 in H2. inversion H2.
+    + split.
+Admitted.
 
 (** [] *)
 End BreakImp.
