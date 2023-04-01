@@ -2387,8 +2387,6 @@ End BreakImp.
     about making up a concrete Notation for [for] loops, but feel free
     to play with this too if you like.) *)
 
-(* FILL IN HERE
-
-    [] *)
+Definition for_loop_def init test body after := <{ init; while test do (body; after) end}>.
 
 (* 2021-08-11 15:08 *)
