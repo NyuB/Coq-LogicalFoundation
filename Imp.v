@@ -2341,13 +2341,33 @@ Theorem ceval_deterministic: forall (c:com) st st1 st2 s1 s2,
      st =[ c ]=> st2 / s2 ->
      st1 = st2 /\ s1 = s2.
 Proof.
-  intros c st st1 st2 r1 r2 H1 H2. inversion H1.
-  - rewrite <- H in H2. inversion H2. split. { rewrite H4 in H8. apply H8. } { reflexivity. }
-  - rewrite <- H in H2. inversion H2. split. { rewrite H4 in H8. apply H8. } { reflexivity. }
-  - rewrite <- H0 in H2. inversion H2. split. { rewrite H in H11. rewrite H11. reflexivity. } { reflexivity. }
-  - rewrite <- H3 in H2. inversion H2.
-    + split.
-Admitted.
+  intros c st st1 st2 r1 r2 H1. generalize dependent r2. generalize dependent st2. induction H1;
+  try (intros st2 r2 H2; inversion H2; split; reflexivity; reflexivity ).
+  - intros st2 r2 H2. inversion H2. split. { rewrite H in H6. rewrite H6. reflexivity. } { reflexivity. }
+  - intros st2 r2 H2. inversion H2.
+    + apply IHceval1 in H1. destruct H1. rewrite <- H1 in H6. apply IHceval2 in H6. apply H6.
+    + apply IHceval1 in H5. destruct H5 as [_ Hcontra]. discriminate Hcontra.
+  - intros st2 r2 H2. inversion H2.
+    + apply IHceval in H3. destruct H3 as [_ Hcontra]. discriminate Hcontra.
+    + apply IHceval in H6. apply H6.
+  - intros st2 r2 H2. inversion H2.
+    + apply IHceval. apply H9.
+    + rewrite H in H8. discriminate H8.
+  - intros st2 r2 H2. inversion H2.
+    + rewrite H in H8. discriminate H8.
+    + apply IHceval. apply H9.
+  - intros st2 r2 H2. inversion H2. split; reflexivity.
+    + rewrite H in H3. discriminate H3.
+    + rewrite H in H3. discriminate H3.
+  - intros st2 r2 H2. inversion H2.
+    + rewrite H6 in H. rewrite H in H7. discriminate H7.
+    + apply IHceval in H8. destruct H8. split. apply H8. reflexivity.
+    + apply IHceval in H5. destruct H5 as [_ Hcontra]. discriminate Hcontra.
+  - intros st2 r2 H2. inversion H2.
+    + rewrite H5 in H. rewrite H in H6. discriminate H6.
+    + apply IHceval1 in H7. destruct H7 as [_ Hcontra]. discriminate Hcontra.
+    + apply IHceval1 in H4. destruct H4. rewrite <- H4 in H8. apply IHceval2 in H8. apply H8.
+Qed.
 
 (** [] *)
 End BreakImp.
